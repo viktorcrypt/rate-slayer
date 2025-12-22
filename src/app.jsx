@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sendCalls, getCapabilities, readContract } from "@wagmi/core";
 import { parseAbi, encodeFunctionData } from "viem";
 import powellImg from "./assets/powell.png";
-import "./App.css";
+import "./app.css";
 
 // === ADDRESS / CHAIN ===
 const CONTRACT_ADDRESS = "0xeC6AF3c5934F383972bb9980A51EC976099270b8";
