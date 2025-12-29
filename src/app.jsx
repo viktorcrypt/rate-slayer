@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WagmiProvider, useAccount, useConnect } from "wagmi";
+import { WagmiProvider, useAccount, useConnect, useSwitchChain } from "wagmi";
 import { base } from "wagmi/chains";
 import { baseAccount } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
@@ -60,8 +60,9 @@ export default function App() {
 }
 
 function BeatPowellApp() {
-  const { address } = useAccount();
+  const { address, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
+  const { switchChain } = useSwitchChain();
 
   const [rate, setRate] = useState(null);
   const [currentRate, setCurrentRate] = useState(null);
@@ -77,6 +78,16 @@ function BeatPowellApp() {
   const [maxRate, setMaxRate] = useState(375);
 
   const connected = !!address;
+
+  // Автоматическое переключение на Base при подключении
+  useEffect(() => {
+    if (connected && chain && chain.id !== 8453) {
+      console.log(`Wrong chain detected: ${chain.id}, switching to Base (8453)...`);
+      setMessage("⚠️ Switching to Base network...");
+      switchChain?.({ chainId: 8453 });
+      setTimeout(() => setMessage(""), 3000);
+    }
+  }, [connected, chain, switchChain]);
 
   const loadData = async () => {
     try {
