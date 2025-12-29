@@ -13,7 +13,7 @@
     "splashImageUrl": "https://rate-slayer.vercel.app/splash.png",
     "splashBackgroundColor": "#0066ff",
     "subtitle": "Lower the Fed Rate",
-    "description": "Onchain game where you hit Jerome Powell to lower the Federal Reserve interest rate by 0.01 percent per hit. Powell recovers 0.05 percent every hour. One hour cooldown between hits.",
+    "description": "Onchain game where you hit Jerome Powell to lower the Federal Reserve interest rate by 0.01 percent per hit. Powell recovers 0.05 percent every hour.",
     "primaryCategory": "games",
     "tags": ["games", "defi", "social", "base"],
     "heroImageUrl": "https://rate-slayer.vercel.app/hero.png",
