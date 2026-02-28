@@ -237,6 +237,7 @@ function BeatPowellApp() {
       <div className="app">
         <h1 className="title">💼 Beat Powell</h1>
         <p className="subtitle">Lower the Fed rate onchain with Base Account</p>
+        <BattleNarrative />
 
         <div className="info-box">
           <p className="info-line">
@@ -266,6 +267,7 @@ function BeatPowellApp() {
     <div className="app">
       <h1 className="title">💼 Beat Powell</h1>
       <p className="subtitle">Lower the Fed rate onchain</p>
+      <BattleNarrative />
 
       <div className={`powell ${shake ? "shake" : ""}`}>
         <div className="powell-glow">
@@ -330,6 +332,23 @@ function BeatPowellApp() {
         The printer goes BRRR 🖨️💸
       </div>
     </div>
+  );
+}
+
+function BattleNarrative() {
+  return (
+    <section className="battle-note">
+      <div className="battle-note-header">LIVE BASE ARENA</div>
+      <p className="battle-note-text">
+        Human players and politician agents both vote on the future rate.
+        Every onchain hit is a visible signal in the same battle.
+      </p>
+      <div className="battle-note-tags">
+        <span className="battle-tag">People</span>
+        <span className="battle-tag">Politician Agents</span>
+        <span className="battle-tag">Shared Outcome</span>
+      </div>
+    </section>
   );
 }
 

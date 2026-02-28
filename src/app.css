@@ -45,6 +45,57 @@ body {
   margin: 0 0 1.2rem;
 }
 
+.battle-note {
+  background:
+    linear-gradient(120deg, rgba(0, 102, 255, 0.2), rgba(0, 255, 208, 0.14)),
+    rgba(16, 18, 24, 0.92);
+  border: 1px solid rgba(98, 173, 255, 0.35);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  text-align: left;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 8px 28px rgba(0, 40, 120, 0.2);
+}
+
+.battle-note-header {
+  display: inline-block;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: #cce4ff;
+  border: 1px solid rgba(163, 208, 255, 0.4);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+}
+
+.battle-note-text {
+  margin: 0;
+  color: #d9e9ff;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.battle-note-tags {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.battle-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #dcf3ff;
+  border: 1px solid rgba(121, 206, 255, 0.35);
+  background: rgba(1, 32, 68, 0.45);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
 /* Info Box */
 .info-box {
   background: rgba(20, 22, 27, 0.8);
@@ -271,4 +322,14 @@ body {
   color: #7a7f88;
   margin-top: 20px;
   opacity: 0.8;
+}
+
+@media (max-width: 600px) {
+  .battle-note {
+    padding: 12px;
+  }
+
+  .battle-note-text {
+    font-size: 0.85rem;
+  }
 }
