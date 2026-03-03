@@ -20,8 +20,17 @@
 html,
 body,
 #app {
-  height: 100dvh;
+  height: 100%;
+  min-height: 100vh;
   overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  html,
+  body,
+  #app {
+    min-height: 100dvh;
+  }
 }
 
 body {
@@ -29,6 +38,7 @@ body {
   padding: 10px;
   display: grid;
   place-items: center;
+  min-height: 100vh;
   font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
   color: var(--text);
   background:
@@ -37,9 +47,15 @@ body {
     var(--bg);
 }
 
+@supports (height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}
+
 .app-shell {
   width: min(100%, 520px);
-  height: calc(100dvh - 20px);
+  height: calc(100vh - 20px);
   max-height: 920px;
   background: rgba(7, 10, 18, 0.8);
   border: 1px solid rgba(94, 118, 191, 0.32);
@@ -50,6 +66,12 @@ body {
   gap: 10px;
   position: relative;
   overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    height: calc(100dvh - 20px);
+  }
 }
 
 .top-header {
@@ -565,7 +587,7 @@ body {
 
   .app-shell {
     width: 100vw;
-    height: 100dvh;
+    height: 100vh;
     border-radius: 0;
     border: none;
   }
@@ -576,6 +598,91 @@ body {
 
   .press-btn-side {
     min-height: 52px;
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (max-width: 420px) {
+    .app-shell {
+      height: 100dvh;
+    }
+  }
+}
+
+@media (max-height: 760px) {
+  .app-shell {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .top-header {
+    gap: 6px;
+  }
+
+  .title {
+    font-size: clamp(20px, 4.2vw, 28px);
+  }
+
+  .ticker-item {
+    font-size: 10px;
+    padding: 5px 12px 6px;
+  }
+
+  .wallet-strip {
+    min-height: 48px;
+    padding: 6px 8px;
+  }
+
+  .wallet-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .tab-content {
+    padding: 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-panel {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    gap: 8px;
+  }
+
+  .mission-card {
+    padding: 8px;
+  }
+
+  .powell-glow {
+    padding: 8px;
+  }
+
+  .powell-img {
+    width: min(34vw, 150px);
+    max-width: 150px;
+  }
+
+  .rate-value {
+    margin: 2px 0 6px;
+    font-size: clamp(22px, 4.8vw, 26px);
+  }
+
+  .printer-gif {
+    max-height: 76px;
+  }
+
+  .press-btn,
+  .share-btn,
+  .connect-btn,
+  .nav-btn {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .bottom-nav {
+    gap: 6px;
   }
 }
 
