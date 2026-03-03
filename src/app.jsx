@@ -17,6 +17,9 @@ const CONTRACT_ADDRESS =
 const CHAIN_ID = base.id;
 
 const PAYMASTER_URL = import.meta.env?.VITE_PAYMASTER_URL?.trim() || null;
+const HAS_ONCHAINKIT_KEY = Boolean(
+  import.meta.env?.VITE_PUBLIC_ONCHAINKIT_API_KEY?.trim()
+);
 
 const runtimeOrigin =
   typeof globalThis !== "undefined" && globalThis.location?.origin
@@ -96,19 +99,13 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const { connect, connectors, isPending } = useConnect();
   const { switchChain } = useSwitchChain();
 
-  const context = miniKit?.context;
-  const setFrameReady = miniKit?.setFrameReady;
-  const isFrameReady = miniKit?.isFrameReady;
-
-  const profile = context?.user ?? {};
-  const displayName =
-    profile.displayName ||
-    profile.username ||
-    "Base Player";
-  const avatarUrl = profile.pfpUrl || null;
-  const hasSocialIdentity = Boolean(
-    profile?.fid || profile?.username || profile?.displayName
-  );
+  const contextUser = miniKit?.context?.user ?? {};
+  const rawName =
+    contextUser?.displayName ||
+    contextUser?.username ||
+    contextUser?.display_name ||
+    contextUser?.userName ||
+    "";
 
   const [rate, setRate] = useState(null);
   const [currentRate, setCurrentRate] = useState(null);
@@ -119,6 +116,7 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [toast, setToast] = useState("");
   const [lastAction, setLastAction] = useState(null);
+  const [activeTab, setActiveTab] = useState("arena");
 
   const [rateIncrease, setRateIncrease] = useState(5);
   const [rateDecrease, setRateDecrease] = useState(1);
@@ -128,6 +126,10 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const connectAttemptedRef = useRef(false);
 
   const connected = Boolean(address);
+  const hasSocialIdentity = Boolean(contextUser?.fid || rawName || contextUser?.pfpUrl);
+
+  const displayName = rawName || (connected ? "Wallet User" : "Base Player");
+  const avatarUrl = contextUser?.pfpUrl || contextUser?.avatarUrl || null;
 
   const getPreferredConnector = useCallback(() => {
     return (
@@ -152,9 +154,9 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   }, []);
 
   useEffect(() => {
-    if (typeof setFrameReady !== "function" || isFrameReady) return;
-    setFrameReady();
-  }, [isFrameReady, setFrameReady]);
+    if (typeof miniKit?.setFrameReady !== "function" || miniKit?.isFrameReady) return;
+    miniKit.setFrameReady();
+  }, [miniKit]);
 
   useEffect(() => {
     if (connected || isPending || connectAttemptedRef.current) return;
@@ -163,7 +165,7 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
 
     connectAttemptedRef.current = true;
     connect({ connector }).catch(() => {
-      setStatusMessage("Connect your Base Account to start playing.");
+      setStatusMessage("Connect your Base Account to start.");
     });
   }, [connect, connected, getPreferredConnector, isPending]);
 
@@ -271,6 +273,7 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     try {
       if (!connected || !address) {
         setStatusMessage("Open in Base App or connect your Base Account first.");
+        setActiveTab("wallet");
         return;
       }
 
@@ -311,8 +314,8 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
 
       showToast(
         supportsPaymaster
-          ? "Hit successful (gas sponsored)."
-          : "Hit successful."
+          ? "Hit confirmed. Gas sponsored."
+          : "Hit confirmed."
       );
 
       setLastAction({
@@ -332,7 +335,7 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     if (!lastAction) return;
 
     if (!hasSocialIdentity) {
-      showToast("Share skipped for wallet-only agent accounts.");
+      showToast("Agent wallet detected: share is skipped.");
       return;
     }
 
@@ -360,7 +363,7 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
 
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(`${shareText}\n${APP_URL}`);
-        showToast("Result copied. Share it anywhere.");
+        showToast("Result copied.");
         return;
       }
 
@@ -381,157 +384,195 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const progressWidth =
     rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
   const canPress = connected && cooldownSec === 0;
-
-  return (
-    <div className="app">
-      <h1 className="title">Beat Powell</h1>
-      <p className="subtitle">Lower the Fed rate onchain with Base Account</p>
-      <BattleNarrative />
-
-      <WalletPanel
-        connected={connected}
-        displayName={displayName}
-        avatarUrl={avatarUrl}
-        address={address}
-        isPending={isPending}
-        onConnect={connectWallet}
-      />
-
-      <div className={`powell ${shake ? "shake" : ""}`}>
-        <div className="powell-glow">
-          <img src={powellImg} alt="Powell" className="powell-img" />
-        </div>
-      </div>
-
-      <div className="rate-box">
-        <div className="rate-label">Current Fed Rate</div>
-        <div className="rate-value">
-          {currentRate != null ? `${currentRate.toFixed(2)}%` : "..."}
-        </div>
-        <div className="rate-bar">
-          <div className="rate-progress" style={{ width: `${progressWidth}%` }} />
-        </div>
-        {currentRate !== rate && (
-          <div className="rate-hint">Rate recovering... (stored: {rate?.toFixed(2)}%)</div>
-        )}
-      </div>
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Total Hits</div>
-          <div className="stat-value">{presses ?? "..."}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Your Cooldown</div>
-          <div className="stat-value">
-            {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
-          </div>
-        </div>
-      </div>
-
-      <div className="info-box compact">
-        <p className="info-line">
-          <span className="info-emoji">-</span>
-          <span>
-            Each hit: <b>-{rateDecrease}%</b>
-          </span>
-        </p>
-        <p className="info-line">
-          <span className="info-emoji">+</span>
-          <span>
-            Powell recovers: <b>+{rateIncrease}%/hour</b>
-          </span>
-        </p>
-      </div>
-
-      <div className="action-row">
-        <button
-          className={`press-btn ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
-          onClick={handlePress}
-          disabled={loading || !canPress}
-          type="button"
-        >
-          {loading
-            ? "Processing..."
-            : !connected
-              ? "Connect Base Account"
-              : canPress
-                ? "HIT POWELL"
-                : `Wait ${formatTime(cooldownSec)}`}
-        </button>
-
-        {canShare && (
-          <button className="share-btn" type="button" onClick={handleShare}>
-            Share Result
-          </button>
-        )}
-      </div>
-
-      {statusMessage && <p className="msg error">{statusMessage}</p>}
-
-      <div className="footer-note">The printer goes BRRR</div>
-
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function WalletPanel({
-  connected,
-  displayName,
-  avatarUrl,
-  address,
-  isPending,
-  onConnect,
-}) {
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected";
 
   return (
-    <div className="wallet-card">
-      <div className="wallet-row">
-        <div className="wallet-profile">
+    <div className="app-shell">
+      <header className="top-header">
+        <h1 className="title">Beat Powell</h1>
+        <p className="subtitle">Humans + agents battle the Fed rate on Base.</p>
+      </header>
+
+      <button
+        className="wallet-strip"
+        type="button"
+        onClick={() => setActiveTab("wallet")}
+      >
+        <span className="wallet-strip-left">
           {avatarUrl ? (
             <img src={avatarUrl} alt={displayName} className="wallet-avatar" />
           ) : (
-            <div className="wallet-avatar wallet-avatar-fallback">{displayName.slice(0, 1)}</div>
+            <span className="wallet-avatar wallet-avatar-fallback">{displayName.slice(0, 1)}</span>
           )}
-          <div>
-            <div className="wallet-name">{displayName}</div>
-            <div className="wallet-address">{shortAddress}</div>
-          </div>
-        </div>
-        <span className={`wallet-status ${connected ? "on" : "off"}`}>
-          {connected ? "Ready" : "Disconnected"}
+          <span>
+            <span className="wallet-name">{displayName}</span>
+            <span className="wallet-address">{shortAddress}</span>
+          </span>
         </span>
-      </div>
+        <span className={`wallet-chip ${connected ? "on" : "off"}`}>
+          {connected ? "Connected" : "Connect"}
+        </span>
+      </button>
 
-      {!connected && (
-        <button className="connect-btn" onClick={onConnect} disabled={isPending} type="button">
-          {isPending ? "Connecting..." : "Connect Base Account"}
+      <main className="tab-content">
+        {activeTab === "arena" && (
+          <section className="tab-panel arena-panel">
+            <div className="mission-card">
+              <div className="mission-title">Mission</div>
+              <div className="mission-text">
+                Real players and autonomous agents both call <code>press()</code> to push rates down.
+              </div>
+            </div>
+
+            <div className={`powell ${shake ? "shake" : ""}`}>
+              <div className="powell-glow">
+                <img src={powellImg} alt="Powell" className="powell-img" />
+              </div>
+            </div>
+
+            <div className="rate-box">
+              <div className="rate-label">Current Fed Rate</div>
+              <div className="rate-value">
+                {currentRate != null ? `${currentRate.toFixed(2)}%` : "..."}
+              </div>
+              <div className="rate-bar">
+                <div className="rate-progress" style={{ width: `${progressWidth}%` }} />
+              </div>
+            </div>
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-label">Total Hits</div>
+                <div className="stat-value">{presses ?? "..."}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Cooldown</div>
+                <div className="stat-value">
+                  {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
+                </div>
+              </div>
+            </div>
+
+            <div className="action-row">
+              <button
+                className={`press-btn ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
+                onClick={handlePress}
+                disabled={loading || !canPress}
+                type="button"
+              >
+                {loading
+                  ? "Processing..."
+                  : !connected
+                    ? "Connect Base Account"
+                    : canPress
+                      ? "HIT POWELL"
+                      : `Wait ${formatTime(cooldownSec)}`}
+              </button>
+
+              {canShare && (
+                <button className="share-btn" type="button" onClick={handleShare}>
+                  Share Result
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "wallet" && (
+          <section className="tab-panel wallet-panel">
+            <div className="wallet-panel-header">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="wallet-avatar large" />
+              ) : (
+                <span className="wallet-avatar wallet-avatar-fallback large">{displayName.slice(0, 1)}</span>
+              )}
+              <div>
+                <div className="wallet-name large">{displayName}</div>
+                <div className="wallet-address">{shortAddress}</div>
+              </div>
+            </div>
+
+            {!connected && (
+              <button className="connect-btn" onClick={connectWallet} disabled={isPending} type="button">
+                {isPending ? "Connecting..." : "Connect Base Account"}
+              </button>
+            )}
+
+            <div className="info-box compact">
+              <p className="info-line">
+                <span className="info-key">Identity:</span>
+                <span>
+                  {hasSocialIdentity
+                    ? "Base App profile detected (nickname + avatar)."
+                    : "Wallet-only mode (typical for agents)."}
+                </span>
+              </p>
+              <p className="info-line">
+                <span className="info-key">MiniKit:</span>
+                <span>
+                  {HAS_ONCHAINKIT_KEY
+                    ? "Enabled"
+                    : "Set VITE_PUBLIC_ONCHAINKIT_API_KEY for best profile sync."}
+                </span>
+              </p>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "briefing" && (
+          <section className="tab-panel briefing-panel">
+            <div className="mission-card">
+              <div className="mission-title">How The Game Works</div>
+              <div className="mission-list">
+                <div>1. Humans and agent wallets press the same onchain button.</div>
+                <div>2. Each hit lowers the rate by {rateDecrease}%.</div>
+                <div>3. Powell recovers +{rateIncrease}% every hour.</div>
+                <div>4. Every wallet has a 1-hour cooldown.</div>
+                <div>5. Goal: keep pressure on rates and print less.</div>
+              </div>
+            </div>
+
+            <div className="info-box compact">
+              <p className="info-line">
+                <span className="info-key">Agents:</span>
+                <span>Can play with wallet-only identity and skip sharing.</span>
+              </p>
+              <p className="info-line">
+                <span className="info-key">People:</span>
+                <span>Can share results to social feeds from Base App clients.</span>
+              </p>
+            </div>
+          </section>
+        )}
+      </main>
+
+      <nav className="bottom-nav" aria-label="Primary navigation">
+        <button
+          type="button"
+          className={`nav-btn ${activeTab === "arena" ? "active" : ""}`}
+          onClick={() => setActiveTab("arena")}
+        >
+          Arena
         </button>
-      )}
-    </div>
-  );
-}
+        <button
+          type="button"
+          className={`nav-btn ${activeTab === "wallet" ? "active" : ""}`}
+          onClick={() => setActiveTab("wallet")}
+        >
+          Wallet
+        </button>
+        <button
+          type="button"
+          className={`nav-btn ${activeTab === "briefing" ? "active" : ""}`}
+          onClick={() => setActiveTab("briefing")}
+        >
+          Briefing
+        </button>
+      </nav>
 
-function BattleNarrative() {
-  return (
-    <section className="battle-note">
-      <div className="battle-note-header">LIVE BASE ARENA</div>
-      <p className="battle-note-text">
-        Human players and agent wallets both push the same onchain rate battle.
-        Each confirmed hit is a visible signal on Base.
-      </p>
-      <div className="battle-note-tags">
-        <span className="battle-tag">People</span>
-        <span className="battle-tag">Agent Wallets</span>
-        <span className="battle-tag">Shared Outcome</span>
-      </div>
-    </section>
+      {statusMessage && <p className="msg error floating-msg">{statusMessage}</p>}
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </div>
   );
 }
 
