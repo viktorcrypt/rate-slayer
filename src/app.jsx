@@ -357,6 +357,35 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     }
   }, [connect, getPreferredConnector]);
 
+  const maybeAutoShare = useCallback(async (rateValue = null) => {
+    if (!hasSocialIdentity) return;
+
+    const rateLabel =
+      typeof rateValue === "number" && Number.isFinite(rateValue)
+        ? `${rateValue.toFixed(2)}%`
+        : "live rate";
+    const shareText = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
+
+    try {
+      if (composeCast) {
+        await composeCast({
+          text: shareText,
+          embeds: [APP_URL],
+        });
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          text: shareText,
+          url: APP_URL,
+        });
+      }
+    } catch (error) {
+      console.warn("auto share skipped:", error);
+    }
+  }, [APP_URL, composeCast, hasSocialIdentity]);
+
   const handlePress = useCallback(async () => {
     try {
       if (!connected || !address) {
@@ -421,62 +450,24 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
       }
 
       await loadData();
+
+      try {
+        const latestRateBps = await readContract(config, {
+          address: CONTRACT_ADDRESS,
+          abi: CONTRACT_ABI,
+          functionName: "getCurrentRate",
+          chainId: CHAIN_ID,
+        });
+        await maybeAutoShare(Number(latestRateBps) / 100);
+      } catch {
+        await maybeAutoShare(currentRate);
+      }
     } catch (e) {
       setStatusMessage(humanError(e));
     } finally {
       setLoading(false);
     }
-  }, [address, connected, cooldownSec, loadData, showToast]);
-
-  const handleShare = useCallback(async () => {
-    if (!lastAction) return;
-
-    if (!hasSocialIdentity) {
-      showToast("Agent wallet detected: share is skipped.");
-      return;
-    }
-
-    const rateLabel =
-      currentRate != null ? `${currentRate.toFixed(2)}%` : "live rate";
-    const shareText = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
-
-    try {
-      if (composeCast) {
-        await composeCast({
-          text: shareText,
-          embeds: [APP_URL],
-        });
-        showToast("Shared to feed.");
-        return;
-      }
-
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({
-          text: shareText,
-          url: APP_URL,
-        });
-        return;
-      }
-
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${shareText}\n${APP_URL}`);
-        showToast("Result copied.");
-        return;
-      }
-
-      showToast("Sharing is unavailable in this client.");
-    } catch {
-      showToast("Share failed. Try again.");
-    }
-  }, [APP_URL, composeCast, currentRate, hasSocialIdentity, lastAction, showToast]);
-
-  const canShare = useMemo(() => {
-    if (!lastAction || !hasSocialIdentity) return false;
-    const hasNativeShare =
-      typeof navigator !== "undefined" &&
-      Boolean(navigator.share || navigator.clipboard?.writeText);
-    return Boolean(composeCast || hasNativeShare);
-  }, [composeCast, hasSocialIdentity, lastAction]);
+  }, [address, connected, cooldownSec, currentRate, loadData, maybeAutoShare, showToast]);
 
   const progressWidth =
     rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
@@ -590,14 +581,6 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
                 className="printer-gif"
               />
             </div>
-
-            {canShare && (
-              <div className="action-row">
-                <button className="share-btn" type="button" onClick={handleShare}>
-                  Share Result
-                </button>
-              </div>
-            )}
           </section>
         )}
 
