@@ -206,6 +206,10 @@ body {
   overflow: hidden;
 }
 
+.arena-panel {
+  gap: 8px;
+}
+
 .mission-card {
   border: 1px solid rgba(106, 134, 214, 0.28);
   background: rgba(20, 27, 43, 0.75);
@@ -338,9 +342,10 @@ body {
 }
 
 .action-row {
-  margin-top: 8px;
+  margin-top: auto;
   display: grid;
   gap: 8px;
+  z-index: 2;
 }
 
 .press-btn,
