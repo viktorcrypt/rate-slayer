@@ -5,8 +5,8 @@ import { baseAccount } from "wagmi/connectors";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { sendCalls, getCapabilities, readContract } from "@wagmi/core";
-import { parseAbi, encodeFunctionData } from "viem";
+import { sendCalls, getCapabilities, getPublicClient, readContract } from "@wagmi/core";
+import { parseAbi, parseAbiItem, encodeFunctionData } from "viem";
 import { useComposeCast, useMiniKit } from "@coinbase/onchainkit/minikit";
 import powellImg from "./assets/powell.png";
 import "./app.css";
@@ -15,11 +15,20 @@ const CONTRACT_ADDRESS =
   import.meta.env?.VITE_CONTRACT_ADDRESS?.trim() ||
   "0xeC6AF3c5934F383972bb9980A51EC976099270b8";
 const CHAIN_ID = base.id;
+const DEFAULT_LOG_LOOKBACK_BLOCKS = 300000n;
+const LOG_CHUNK_SIZE = 50000n;
 
 const PAYMASTER_URL = import.meta.env?.VITE_PAYMASTER_URL?.trim() || null;
-const HAS_ONCHAINKIT_KEY = Boolean(
-  import.meta.env?.VITE_PUBLIC_ONCHAINKIT_API_KEY?.trim()
-);
+const LOCAL_HITS_KEY_PREFIX = "beatpowell:hits:";
+const CONTRACT_DEPLOY_BLOCK = (() => {
+  const raw = String(import.meta.env?.VITE_CONTRACT_DEPLOY_BLOCK ?? "").trim();
+  if (!raw) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+})();
 
 const runtimeOrigin =
   typeof globalThis !== "undefined" && globalThis.location?.origin
@@ -34,6 +43,7 @@ const CONTRACT_ABI = parseAbi([
   "function rateBps() view returns (uint256)",
   "function totalPresses() view returns (uint256)",
   "function lastUpdateTime() view returns (uint256)",
+  "function lastPressTime(address user) view returns (uint256)",
   "function timeUntilNextPress(address user) view returns (uint256)",
   "function getCurrentRate() view returns (uint256)",
   "function press()",
@@ -41,6 +51,10 @@ const CONTRACT_ABI = parseAbi([
   "function DECREASE_PER_PRESS() view returns (uint256)",
   "function MAX_RATE() view returns (uint256)",
 ]);
+
+const PRESSED_EVENT = parseAbiItem(
+  "event Pressed(address indexed user, uint256 newRate, uint256 totalPresses)"
+);
 
 const config = createConfig({
   chains: [base],
@@ -121,9 +135,16 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const [rateIncrease, setRateIncrease] = useState(5);
   const [rateDecrease, setRateDecrease] = useState(1);
   const [maxRate, setMaxRate] = useState(375);
+  const [userHits, setUserHits] = useState(null);
+  const [userHitsSource, setUserHitsSource] = useState("local");
+  const [localConfirmedHits, setLocalConfirmedHits] = useState(0);
 
   const toastTimerRef = useRef(null);
   const connectAttemptedRef = useRef(false);
+  const localHitKey = useMemo(
+    () => (address ? `${LOCAL_HITS_KEY_PREFIX}${address.toLowerCase()}` : null),
+    [address]
+  );
 
   const connected = Boolean(address);
   const hasSocialIdentity = Boolean(contextUser?.fid || rawName || contextUser?.pfpUrl);
@@ -146,6 +167,49 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(""), 3200);
   }, []);
+
+  const resolveUserHitsFromEvents = useCallback(async (walletAddress) => {
+    try {
+      const publicClient = getPublicClient(config, { chainId: CHAIN_ID });
+      if (!publicClient) return null;
+
+      const latestBlock = await publicClient.getBlockNumber();
+      const fromBlock =
+        CONTRACT_DEPLOY_BLOCK != null
+          ? CONTRACT_DEPLOY_BLOCK
+          : latestBlock > DEFAULT_LOG_LOOKBACK_BLOCKS
+            ? latestBlock - DEFAULT_LOG_LOOKBACK_BLOCKS
+            : 0n;
+
+      let total = 0;
+      for (let start = fromBlock; start <= latestBlock; start += LOG_CHUNK_SIZE + 1n) {
+        const end = start + LOG_CHUNK_SIZE > latestBlock ? latestBlock : start + LOG_CHUNK_SIZE;
+        const logs = await publicClient.getLogs({
+          address: CONTRACT_ADDRESS,
+          event: PRESSED_EVENT,
+          args: { user: walletAddress },
+          fromBlock: start,
+          toBlock: end,
+        });
+        total += logs.length;
+      }
+
+      return total;
+    } catch (error) {
+      console.warn("resolveUserHitsFromEvents error:", error);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!localHitKey || typeof window === "undefined") {
+      setLocalConfirmedHits(0);
+      return;
+    }
+    const raw = window.localStorage.getItem(localHitKey);
+    const parsed = Number.parseInt(raw || "0", 10);
+    setLocalConfirmedHits(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+  }, [localHitKey]);
 
   useEffect(() => {
     return () => {
@@ -243,6 +307,8 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
         setCooldownSec(Number(cd));
       } else {
         setCooldownSec(0);
+        setUserHits(null);
+        setUserHitsSource("local");
       }
     } catch (e) {
       console.warn("loadData error:", e);
@@ -254,6 +320,28 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     const id = setInterval(loadData, 8000);
     return () => clearInterval(id);
   }, [loadData]);
+
+  const loadUserHits = useCallback(async () => {
+    if (!address) {
+      setUserHits(null);
+      setUserHitsSource("local");
+      return;
+    }
+
+    const fromEvents = await resolveUserHitsFromEvents(address);
+    if (fromEvents != null) {
+      setUserHits(fromEvents);
+      setUserHitsSource(CONTRACT_DEPLOY_BLOCK != null ? "events" : "events_recent");
+      return;
+    }
+
+    setUserHits(null);
+    setUserHitsSource("local");
+  }, [address, resolveUserHitsFromEvents]);
+
+  useEffect(() => {
+    loadUserHits();
+  }, [loadUserHits, lastAction?.at]);
 
   const connectWallet = useCallback(async () => {
     try {
@@ -323,6 +411,15 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
         at: Date.now(),
       });
 
+      if (typeof window !== "undefined" && address) {
+        const key = `${LOCAL_HITS_KEY_PREFIX}${address.toLowerCase()}`;
+        const raw = window.localStorage.getItem(key);
+        const parsed = Number.parseInt(raw || "0", 10);
+        const next = (Number.isFinite(parsed) ? parsed : 0) + 1;
+        window.localStorage.setItem(key, String(next));
+        setLocalConfirmedHits(next);
+      }
+
       await loadData();
     } catch (e) {
       setStatusMessage(humanError(e));
@@ -385,6 +482,13 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
   const canPress = connected && cooldownSec === 0;
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected";
+  const effectiveUserHits = userHits != null ? userHits : localConfirmedHits;
+  const safeGlobalHits = presses != null ? Math.max(0, presses) : 0;
+  const safeUserHits = Math.max(0, Math.min(effectiveUserHits, safeGlobalHits || effectiveUserHits));
+  const othersHits = Math.max(0, safeGlobalHits - safeUserHits);
+  const walletSharePct =
+    safeGlobalHits > 0 ? Math.round((safeUserHits / safeGlobalHits) * 100) : 0;
+  const othersSharePct = safeGlobalHits > 0 ? 100 - walletSharePct : 0;
 
   return (
     <div className="app-shell">
@@ -463,28 +567,12 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
               </div>
             </div>
 
-            <div className="printer-strip" aria-label="Money printer status">
-              <div className="printer-tile">
-                <span className="printer-icon" aria-hidden="true">PR</span>
-                <div>
-                  <div className="printer-label">Presses</div>
-                  <div className="printer-value">Running Hot</div>
-                </div>
-              </div>
-              <div className="printer-tile">
-                <span className="printer-icon" aria-hidden="true">$$</span>
-                <div>
-                  <div className="printer-label">Liquidity</div>
-                  <div className="printer-value">Flood Mode</div>
-                </div>
-              </div>
-              <div className="printer-tile">
-                <span className="printer-icon" aria-hidden="true">FR</span>
-                <div>
-                  <div className="printer-label">Fed Mood</div>
-                  <div className="printer-value">Under Pressure</div>
-                </div>
-              </div>
+            <div className="printer-gif-card" aria-label="Powell money printer cam">
+              <img
+                src="/powellprint.gif"
+                alt="Powell spinning the money printer"
+                className="printer-gif"
+              />
             </div>
 
             <div className="action-row">
@@ -532,23 +620,52 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
               </button>
             )}
 
+            <div className="cabinet-grid">
+              <div className="stat-card">
+                <div className="stat-label">Your Success Hits</div>
+                <div className="stat-value">{connected ? safeUserHits : "--"}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-label">Global Hits</div>
+                <div className="stat-value">{presses ?? "..."}</div>
+              </div>
+            </div>
+
             <div className="info-box compact">
               <p className="info-line">
-                <span className="info-key">Identity:</span>
+                <span className="info-key">Source:</span>
                 <span>
-                  {hasSocialIdentity
-                    ? "Base App profile detected (nickname + avatar)."
-                    : "Wallet-only mode (typical for agents)."}
+                  {userHitsSource === "events"
+                    ? "Onchain event history (full)."
+                    : userHitsSource === "events_recent"
+                      ? "Recent onchain events (set VITE_CONTRACT_DEPLOY_BLOCK for full history)."
+                      : "Local confirmed hits in this app."}
                 </span>
               </p>
               <p className="info-line">
-                <span className="info-key">MiniKit:</span>
+                <span className="info-key">Cooldown:</span>
                 <span>
-                  {HAS_ONCHAINKIT_KEY
-                    ? "Enabled"
-                    : "Set VITE_PUBLIC_ONCHAINKIT_API_KEY for best profile sync."}
+                  {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready now"}
                 </span>
               </p>
+            </div>
+
+            <div className="agent-diagram" aria-label="Action split between wallets">
+              <div className="agent-diagram-title">Action Split (Agents + Humans)</div>
+              <div className="agent-row">
+                <span className="agent-row-label">Your wallet</span>
+                <div className="agent-track">
+                  <div className="agent-fill your" style={{ width: `${walletSharePct}%` }} />
+                </div>
+                <span className="agent-row-value">{connected ? safeUserHits : "--"}</span>
+              </div>
+              <div className="agent-row">
+                <span className="agent-row-label">Other wallets</span>
+                <div className="agent-track">
+                  <div className="agent-fill others" style={{ width: `${othersSharePct}%` }} />
+                </div>
+                <span className="agent-row-value">{presses != null ? othersHits : "..."}</span>
+              </div>
             </div>
           </section>
         )}
@@ -564,17 +681,6 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
                 <div>4. Every wallet has a 1-hour cooldown.</div>
                 <div>5. Goal: keep pressure on rates and cool the printer.</div>
               </div>
-            </div>
-
-            <div className="info-box compact">
-              <p className="info-line">
-                <span className="info-key">Agents:</span>
-                <span>Can play with wallet-only identity and skip sharing.</span>
-              </p>
-              <p className="info-line">
-                <span className="info-key">People:</span>
-                <span>Can share results to social feeds from Base App clients.</span>
-              </p>
             </div>
           </section>
         )}
