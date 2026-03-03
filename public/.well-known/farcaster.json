@@ -4,6 +4,9 @@
     "payload": "eyJkb21haW4iOiJyYXRlLXNsYXllci52ZXJjZWwuYXBwIn0",
     "signature": "go//ZNPHddWGr1b8pt9R/f73x+domc5vBYr/dLu5sJ9rIBmp7uV8NaTf02OFFtk6dezlzGcGjIB/2PABcNnMDRw="
   },
+  "baseBuilder": {
+    "ownerAddress": "0x1081c1E06e7508e9d2F0078798Ec6F53E9bBB52C"
+  },
   "miniapp": {
     "version": "1",
     "name": "Beat Powell",
