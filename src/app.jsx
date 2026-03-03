@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WagmiProvider, useAccount, useConnect, useSwitchChain } from "wagmi";
 import { base } from "wagmi/chains";
 import { baseAccount } from "wagmi/connectors";
@@ -7,21 +7,26 @@ import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sendCalls, getCapabilities, readContract } from "@wagmi/core";
 import { parseAbi, encodeFunctionData } from "viem";
+import { useComposeCast, useMiniKit } from "@coinbase/onchainkit/minikit";
 import powellImg from "./assets/powell.png";
 import "./app.css";
 
-// === ADDRESS / CHAIN ===
 const CONTRACT_ADDRESS =
   import.meta.env?.VITE_CONTRACT_ADDRESS?.trim() ||
   "0xeC6AF3c5934F383972bb9980A51EC976099270b8";
-const CHAIN_ID = base.id; // 8453
+const CHAIN_ID = base.id;
 
-// Paymaster (замени на свой URL от Coinbase Developer Platform)
-// Пока закомментировано - пользователи платят газ сами
-// const PAYMASTER_URL = "YOUR_PAYMASTER_URL";
 const PAYMASTER_URL = import.meta.env?.VITE_PAYMASTER_URL?.trim() || null;
 
-// === ABI ===
+const runtimeOrigin =
+  typeof globalThis !== "undefined" && globalThis.location?.origin
+    ? globalThis.location.origin
+    : "https://rate-slayer.vercel.app";
+const APP_URL =
+  (import.meta.env?.VITE_APP_URL && String(import.meta.env.VITE_APP_URL).trim()) ||
+  runtimeOrigin;
+const APP_LOGO_URL = `${APP_URL.replace(/\/$/, "")}/icon.png`;
+
 const CONTRACT_ABI = parseAbi([
   "function rateBps() view returns (uint256)",
   "function totalPresses() view returns (uint256)",
@@ -34,37 +39,76 @@ const CONTRACT_ABI = parseAbi([
   "function MAX_RATE() view returns (uint256)",
 ]);
 
-// === WAGMI CONFIG ===
 const config = createConfig({
   chains: [base],
   transports: {
     [base.id]: http(),
   },
   connectors: [
-    farcasterMiniApp(),
     baseAccount({
       appName: "Beat Powell",
-      appLogoUrl: "https://base.org/logo.png",
+      appLogoUrl: APP_LOGO_URL,
     }),
+    farcasterMiniApp(),
   ],
 });
 
 const queryClient = new QueryClient();
 
+class MiniKitErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null;
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <BeatPowellApp />
+        <MiniKitErrorBoundary fallback={<BeatPowellAppCore />}>
+          <BeatPowellAppWithMiniKit />
+        </MiniKitErrorBoundary>
       </QueryClientProvider>
     </WagmiProvider>
   );
 }
 
-function BeatPowellApp() {
+function BeatPowellAppWithMiniKit() {
+  const miniKit = useMiniKit();
+  const { composeCast } = useComposeCast();
+  return <BeatPowellAppCore miniKit={miniKit} composeCast={composeCast} />;
+}
+
+function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   const { address, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { switchChain } = useSwitchChain();
+
+  const context = miniKit?.context;
+  const setFrameReady = miniKit?.setFrameReady;
+  const isFrameReady = miniKit?.isFrameReady;
+
+  const profile = context?.user ?? {};
+  const displayName =
+    profile.displayName ||
+    profile.username ||
+    "Base Player";
+  const avatarUrl = profile.pfpUrl || null;
+  const hasSocialIdentity = Boolean(
+    profile?.fid || profile?.username || profile?.displayName
+  );
 
   const [rate, setRate] = useState(null);
   const [currentRate, setCurrentRate] = useState(null);
@@ -72,28 +116,75 @@ function BeatPowellApp() {
   const [cooldownSec, setCooldownSec] = useState(0);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
-  const [message, setMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [toast, setToast] = useState("");
+  const [lastAction, setLastAction] = useState(null);
 
-  // Константы из контракта
   const [rateIncrease, setRateIncrease] = useState(5);
   const [rateDecrease, setRateDecrease] = useState(1);
   const [maxRate, setMaxRate] = useState(375);
 
-  const connected = !!address;
+  const toastTimerRef = useRef(null);
+  const connectAttemptedRef = useRef(false);
 
-  // Автоматическое переключение на Base при подключении
+  const connected = Boolean(address);
+
+  const getPreferredConnector = useCallback(() => {
+    return (
+      connectors.find((item) => {
+        const id = String(item?.id || "").toLowerCase();
+        const name = String(item?.name || "").toLowerCase();
+        return id.includes("base") || name.includes("base");
+      }) || connectors[0]
+    );
+  }, [connectors]);
+
+  const showToast = useCallback((message) => {
+    setToast(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(""), 3200);
+  }, []);
+
   useEffect(() => {
-    if (connected && chain && chain.id !== 8453) {
-      console.log(`Wrong chain detected: ${chain.id}, switching to Base (8453)...`);
-      setMessage("⚠️ Switching to Base network...");
-      switchChain?.({ chainId: 8453 });
-      setTimeout(() => setMessage(""), 3000);
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof setFrameReady !== "function" || isFrameReady) return;
+    setFrameReady();
+  }, [isFrameReady, setFrameReady]);
+
+  useEffect(() => {
+    if (connected || isPending || connectAttemptedRef.current) return;
+    const connector = getPreferredConnector();
+    if (!connector) return;
+
+    connectAttemptedRef.current = true;
+    connect({ connector }).catch(() => {
+      setStatusMessage("Connect your Base Account to start playing.");
+    });
+  }, [connect, connected, getPreferredConnector, isPending]);
+
+  useEffect(() => {
+    if (connected && chain && chain.id !== CHAIN_ID) {
+      setStatusMessage("Switching to Base network...");
+      switchChain?.({ chainId: CHAIN_ID });
+      setTimeout(() => setStatusMessage(""), 3000);
     }
   }, [connected, chain, switchChain]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const [rateBps, totalPresses, currentRateBps, increasePerHour, decreasePerPress, maxRateBps] = await Promise.all([
+      const [
+        rateBps,
+        totalPresses,
+        currentRateBps,
+        increasePerHour,
+        decreasePerPress,
+        maxRateBps,
+      ] = await Promise.all([
         readContract(config, {
           address: CONTRACT_ADDRESS,
           abi: CONTRACT_ABI,
@@ -148,54 +239,50 @@ function BeatPowellApp() {
           chainId: CHAIN_ID,
         });
         setCooldownSec(Number(cd));
+      } else {
+        setCooldownSec(0);
       }
     } catch (e) {
       console.warn("loadData error:", e);
     }
-  };
+  }, [address]);
 
   useEffect(() => {
     loadData();
     const id = setInterval(loadData, 8000);
     return () => clearInterval(id);
-  }, [address]);
+  }, [loadData]);
 
-  const connectWallet = async () => {
+  const connectWallet = useCallback(async () => {
     try {
-      setMessage("");
-      const connector =
-        connectors.find((item) => {
-          const id = String(item?.id || "").toLowerCase();
-          const name = String(item?.name || "").toLowerCase();
-          return id.includes("base") || name.includes("base");
-        }) || connectors[0];
-      if (!connector) return setMessage("No wallet connectors available");
+      setStatusMessage("");
+      const connector = getPreferredConnector();
+      if (!connector) {
+        setStatusMessage("No wallet connectors available.");
+        return;
+      }
       await connect({ connector });
     } catch (e) {
-      console.error(e);
-      setMessage(humanError(e));
+      setStatusMessage(humanError(e));
     }
-  };
+  }, [connect, getPreferredConnector]);
 
-  const handlePress = async () => {
+  const handlePress = useCallback(async () => {
     try {
       if (!connected || !address) {
-        return setMessage("Open inside Base App / connect first");
+        setStatusMessage("Open in Base App or connect your Base Account first.");
+        return;
+      }
+
+      if (cooldownSec > 0) {
+        setStatusMessage(`Wait ${formatTime(cooldownSec)} until next press.`);
+        return;
       }
 
       setLoading(true);
-      setMessage("");
+      setStatusMessage("");
       setShake(true);
       setTimeout(() => setShake(false), 500);
-
-      const account = address;
-
-      // Проверяем cooldown
-      if (cooldownSec > 0) {
-        setMessage(`Wait ${formatTime(cooldownSec)} until next press`);
-        setLoading(false);
-        return;
-      }
 
       const data = encodeFunctionData({
         abi: CONTRACT_ABI,
@@ -203,15 +290,16 @@ function BeatPowellApp() {
         args: [],
       });
 
-      // getCapabilities для paymaster
-      const capabilities = await getCapabilities(config, { account });
-      const baseCapabilities = capabilities?.[8453];
-      const supportsPaymaster = PAYMASTER_URL && !!baseCapabilities?.paymasterService?.supported;
+      const capabilities = await getCapabilities(config, { account: address });
+      const baseCapabilities = capabilities?.[CHAIN_ID];
+      const supportsPaymaster = Boolean(
+        PAYMASTER_URL && baseCapabilities?.paymasterService?.supported
+      );
 
       await sendCalls(config, {
-        account,
+        account: address,
         calls: [{ to: CONTRACT_ADDRESS, data }],
-        chainId: 8453,
+        chainId: CHAIN_ID,
         capabilities: supportsPaymaster
           ? {
               paymasterService: {
@@ -221,60 +309,93 @@ function BeatPowellApp() {
           : undefined,
       });
 
-      setMessage(
+      showToast(
         supportsPaymaster
-          ? "✅ Hit successful (gas sponsored)!"
-          : "✅ Hit successful!"
+          ? "Hit successful (gas sponsored)."
+          : "Hit successful."
       );
+
+      setLastAction({
+        sponsored: supportsPaymaster,
+        at: Date.now(),
+      });
 
       await loadData();
     } catch (e) {
-      console.error(e);
-      setMessage(humanError(e));
+      setStatusMessage(humanError(e));
     } finally {
       setLoading(false);
     }
-  };
+  }, [address, connected, cooldownSec, loadData, showToast]);
 
-  const progressWidth = rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
-  const canPress = cooldownSec === 0;
+  const handleShare = useCallback(async () => {
+    if (!lastAction) return;
 
-  if (!connected) {
-    return (
-      <div className="app">
-        <h1 className="title">💼 Beat Powell</h1>
-        <p className="subtitle">Lower the Fed rate onchain with Base Account</p>
-        <BattleNarrative />
+    if (!hasSocialIdentity) {
+      showToast("Share skipped for wallet-only agent accounts.");
+      return;
+    }
 
-        <div className="info-box">
-          <p className="info-line">
-            <span className="info-emoji">📉</span>
-            <span>Each hit lowers rate by <b>{rateDecrease}%</b></span>
-          </p>
-          <p className="info-line">
-            <span className="info-emoji">📈</span>
-            <span>Powell recovers <b>+{rateIncrease}%</b> every hour</span>
-          </p>
-          <p className="info-line">
-            <span className="info-emoji">⏰</span>
-            <span>1 hit per hour per wallet</span>
-          </p>
-        </div>
+    const rateLabel =
+      currentRate != null ? `${currentRate.toFixed(2)}%` : "live rate";
+    const shareText = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
 
-        <button className="connect-btn" onClick={connectWallet} disabled={isPending}>
-          {isPending ? "Connecting..." : "Connect Base Account"}
-        </button>
+    try {
+      if (composeCast) {
+        await composeCast({
+          text: shareText,
+          embeds: [APP_URL],
+        });
+        showToast("Shared to feed.");
+        return;
+      }
 
-        {message && <p className="msg error">{message}</p>}
-      </div>
-    );
-  }
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          text: shareText,
+          url: APP_URL,
+        });
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${APP_URL}`);
+        showToast("Result copied. Share it anywhere.");
+        return;
+      }
+
+      showToast("Sharing is unavailable in this client.");
+    } catch {
+      showToast("Share failed. Try again.");
+    }
+  }, [APP_URL, composeCast, currentRate, hasSocialIdentity, lastAction, showToast]);
+
+  const canShare = useMemo(() => {
+    if (!lastAction || !hasSocialIdentity) return false;
+    const hasNativeShare =
+      typeof navigator !== "undefined" &&
+      Boolean(navigator.share || navigator.clipboard?.writeText);
+    return Boolean(composeCast || hasNativeShare);
+  }, [composeCast, hasSocialIdentity, lastAction]);
+
+  const progressWidth =
+    rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
+  const canPress = connected && cooldownSec === 0;
 
   return (
     <div className="app">
-      <h1 className="title">💼 Beat Powell</h1>
-      <p className="subtitle">Lower the Fed rate onchain</p>
+      <h1 className="title">Beat Powell</h1>
+      <p className="subtitle">Lower the Fed rate onchain with Base Account</p>
       <BattleNarrative />
+
+      <WalletPanel
+        connected={connected}
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+        address={address}
+        isPending={isPending}
+        onConnect={connectWallet}
+      />
 
       <div className={`powell ${shake ? "shake" : ""}`}>
         <div className="powell-glow">
@@ -291,9 +412,7 @@ function BeatPowellApp() {
           <div className="rate-progress" style={{ width: `${progressWidth}%` }} />
         </div>
         {currentRate !== rate && (
-          <div className="rate-hint">
-            💪 Rate recovering... (stored: {rate?.toFixed(2)}%)
-          </div>
+          <div className="rate-hint">Rate recovering... (stored: {rate?.toFixed(2)}%)</div>
         )}
       </div>
 
@@ -305,39 +424,96 @@ function BeatPowellApp() {
         <div className="stat-card">
           <div className="stat-label">Your Cooldown</div>
           <div className="stat-value">
-            {cooldownSec > 0 ? formatTime(cooldownSec) : "Ready! 🔥"}
+            {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
           </div>
         </div>
       </div>
 
       <div className="info-box compact">
         <p className="info-line">
-          <span className="info-emoji">📉</span>
-          <span>Each hit: <b>-{rateDecrease}%</b></span>
+          <span className="info-emoji">-</span>
+          <span>
+            Each hit: <b>-{rateDecrease}%</b>
+          </span>
         </p>
         <p className="info-line">
-          <span className="info-emoji">📈</span>
-          <span>Powell recovers: <b>+{rateIncrease}%/hour</b></span>
+          <span className="info-emoji">+</span>
+          <span>
+            Powell recovers: <b>+{rateIncrease}%/hour</b>
+          </span>
         </p>
       </div>
 
-      <button
-        className={`press-btn ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
-        onClick={handlePress}
-        disabled={loading || !canPress}
-      >
-        {loading ? "Processing..." : canPress ? "HIT POWELL 👊" : `Wait ${formatTime(cooldownSec)}`}
-      </button>
+      <div className="action-row">
+        <button
+          className={`press-btn ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
+          onClick={handlePress}
+          disabled={loading || !canPress}
+          type="button"
+        >
+          {loading
+            ? "Processing..."
+            : !connected
+              ? "Connect Base Account"
+              : canPress
+                ? "HIT POWELL"
+                : `Wait ${formatTime(cooldownSec)}`}
+        </button>
 
-      {message && <p className="msg">{message}</p>}
-
-      <p className="address">
-        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—"}
-      </p>
-
-      <div className="footer-note">
-        The printer goes BRRR 🖨️💸
+        {canShare && (
+          <button className="share-btn" type="button" onClick={handleShare}>
+            Share Result
+          </button>
+        )}
       </div>
+
+      {statusMessage && <p className="msg error">{statusMessage}</p>}
+
+      <div className="footer-note">The printer goes BRRR</div>
+
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WalletPanel({
+  connected,
+  displayName,
+  avatarUrl,
+  address,
+  isPending,
+  onConnect,
+}) {
+  const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected";
+
+  return (
+    <div className="wallet-card">
+      <div className="wallet-row">
+        <div className="wallet-profile">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={displayName} className="wallet-avatar" />
+          ) : (
+            <div className="wallet-avatar wallet-avatar-fallback">{displayName.slice(0, 1)}</div>
+          )}
+          <div>
+            <div className="wallet-name">{displayName}</div>
+            <div className="wallet-address">{shortAddress}</div>
+          </div>
+        </div>
+        <span className={`wallet-status ${connected ? "on" : "off"}`}>
+          {connected ? "Ready" : "Disconnected"}
+        </span>
+      </div>
+
+      {!connected && (
+        <button className="connect-btn" onClick={onConnect} disabled={isPending} type="button">
+          {isPending ? "Connecting..." : "Connect Base Account"}
+        </button>
+      )}
     </div>
   );
 }
@@ -347,12 +523,12 @@ function BattleNarrative() {
     <section className="battle-note">
       <div className="battle-note-header">LIVE BASE ARENA</div>
       <p className="battle-note-text">
-        Human players and politician agents both vote on the future rate.
-        Every onchain hit is a visible signal in the same battle.
+        Human players and agent wallets both push the same onchain rate battle.
+        Each confirmed hit is a visible signal on Base.
       </p>
       <div className="battle-note-tags">
         <span className="battle-tag">People</span>
-        <span className="battle-tag">Politician Agents</span>
+        <span className="battle-tag">Agent Wallets</span>
         <span className="battle-tag">Shared Outcome</span>
       </div>
     </section>
@@ -378,4 +554,3 @@ function humanError(e) {
     String(e)
   );
 }
-

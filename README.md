@@ -24,16 +24,20 @@ npx hardhat compile
 npx hardhat run scripts/deploy.js --network base
 ```
 
-### 3. Configure Contract + Paymaster
+### 3. Configure App Environment
 
 Create `.env.local` in the project root:
 ```bash
 VITE_CONTRACT_ADDRESS=YOUR_DEPLOYED_CONTRACT_ADDRESS
 VITE_PAYMASTER_URL=YOUR_PAYMASTER_URL
+VITE_PUBLIC_ONCHAINKIT_API_KEY=YOUR_ONCHAINKIT_API_KEY
+VITE_APP_URL=https://rate-slayer.vercel.app
 ```
 
 - If `VITE_PAYMASTER_URL` is empty, transactions are sent without sponsorship.
 - If it is set and supported by wallet capabilities, gas is sponsored.
+- `VITE_PUBLIC_ONCHAINKIT_API_KEY` enables MiniKit context and compose-cast sharing.
+- `VITE_APP_URL` is used in share links and wallet branding metadata.
 
 ### 4. Get Paymaster URL (optional, for gasless transactions)
 

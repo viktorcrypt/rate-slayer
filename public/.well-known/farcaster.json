@@ -9,18 +9,24 @@
     "name": "Beat Powell",
     "homeUrl": "https://rate-slayer.vercel.app",
     "iconUrl": "https://rate-slayer.vercel.app/icon.png",
-    "imageUrl": "https://rate-slayer.vercel.app/hero.png",
+    "imageUrl": "https://rate-slayer.vercel.app/beatpowell-cover.png",
     "splashImageUrl": "https://rate-slayer.vercel.app/splash.png",
     "splashBackgroundColor": "#0066ff",
     "subtitle": "Lower the Fed Rate",
     "description": "Onchain game where you hit Jerome Powell to lower the Federal Reserve interest rate by 0.01 percent per hit. Powell recovers 0.05 percent every hour.",
+    "screenshotUrls": [
+      "https://rate-slayer.vercel.app/screenshots/screenshot-1.png",
+      "https://rate-slayer.vercel.app/screenshots/screenshot-2.png",
+      "https://rate-slayer.vercel.app/screenshots/screenshot-3.png"
+    ],
     "primaryCategory": "games",
     "tags": ["games", "defi", "social", "base"],
-    "heroImageUrl": "https://rate-slayer.vercel.app/hero.png",
+    "heroImageUrl": "https://rate-slayer.vercel.app/beatpowell-cover.png",
     "tagline": "The printer goes BRRR",
     "ogTitle": "Beat Powell",
     "ogDescription": "Hit Jerome Powell to lower interest rates! Built on Base with Smart Wallets.",
-    "ogImageUrl": "https://rate-slayer.vercel.app/hero.png",
+    "ogImageUrl": "https://rate-slayer.vercel.app/beatpowell-cover.png",
     "noindex": false
   }
 }
+
