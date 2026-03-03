@@ -24,20 +24,23 @@ npx hardhat compile
 npx hardhat run scripts/deploy.js --network base
 ```
 
-### 3. Update Contract Address
+### 3. Configure Contract + Paymaster
 
-In `src/app.jsx`, update:
-```javascript
-const CONTRACT_ADDRESS = "YOUR_DEPLOYED_CONTRACT_ADDRESS";
-const PAYMASTER_URL = "YOUR_PAYMASTER_URL"; // from Coinbase Developer Platform
+Create `.env.local` in the project root:
+```bash
+VITE_CONTRACT_ADDRESS=YOUR_DEPLOYED_CONTRACT_ADDRESS
+VITE_PAYMASTER_URL=YOUR_PAYMASTER_URL
 ```
+
+- If `VITE_PAYMASTER_URL` is empty, transactions are sent without sponsorship.
+- If it is set and supported by wallet capabilities, gas is sponsored.
 
 ### 4. Get Paymaster URL (optional, for gasless transactions)
 
 1. Go to https://portal.cdp.coinbase.com/
 2. Create a new project
 3. Copy Paymaster URL for Base mainnet
-4. Paste it in `src/app.jsx`
+4. Paste it into `.env.local` as `VITE_PAYMASTER_URL`
 
 ### 5. Run locally
 ```bash
@@ -78,3 +81,4 @@ npm run build
 ---
 
 **The printer goes BRRR** 🖨️💸
+

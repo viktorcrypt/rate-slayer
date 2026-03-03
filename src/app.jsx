@@ -11,13 +11,15 @@ import powellImg from "./assets/powell.png";
 import "./app.css";
 
 // === ADDRESS / CHAIN ===
-const CONTRACT_ADDRESS = "0xeC6AF3c5934F383972bb9980A51EC976099270b8";
+const CONTRACT_ADDRESS =
+  import.meta.env?.VITE_CONTRACT_ADDRESS?.trim() ||
+  "0xeC6AF3c5934F383972bb9980A51EC976099270b8";
 const CHAIN_ID = base.id; // 8453
 
 // Paymaster (замени на свой URL от Coinbase Developer Platform)
 // Пока закомментировано - пользователи платят газ сами
 // const PAYMASTER_URL = "YOUR_PAYMASTER_URL";
-const PAYMASTER_URL = null; // Отключен - юзеры платят газ
+const PAYMASTER_URL = import.meta.env?.VITE_PAYMASTER_URL?.trim() || null;
 
 // === ABI ===
 const CONTRACT_ABI = parseAbi([
@@ -161,7 +163,12 @@ function BeatPowellApp() {
   const connectWallet = async () => {
     try {
       setMessage("");
-      const connector = connectors[0];
+      const connector =
+        connectors.find((item) => {
+          const id = String(item?.id || "").toLowerCase();
+          const name = String(item?.name || "").toLowerCase();
+          return id.includes("base") || name.includes("base");
+        }) || connectors[0];
       if (!connector) return setMessage("No wallet connectors available");
       await connect({ connector });
     } catch (e) {
@@ -371,3 +378,4 @@ function humanError(e) {
     String(e)
   );
 }
+
