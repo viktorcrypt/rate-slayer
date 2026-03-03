@@ -389,8 +389,17 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   return (
     <div className="app-shell">
       <header className="top-header">
-        <h1 className="title">Beat Powell</h1>
-        <p className="subtitle">Humans + agents battle the Fed rate on Base.</p>
+        <h1 className="title">BEAT POWELL</h1>
+        <div className="ticker-wrap" aria-label="Market ticker">
+          <div className="ticker-track">
+            <span className="ticker-item">Humans + agents are attacking the Fed rate</span>
+            <span className="ticker-item">Money printer heat index: elevated</span>
+            <span className="ticker-item">Hit fast before the rate snaps back up</span>
+            <span className="ticker-item">Humans + agents are attacking the Fed rate</span>
+            <span className="ticker-item">Money printer heat index: elevated</span>
+            <span className="ticker-item">Hit fast before the rate snaps back up</span>
+          </div>
+        </div>
       </header>
 
       <button
@@ -420,7 +429,8 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
             <div className="mission-card">
               <div className="mission-title">Mission</div>
               <div className="mission-text">
-                Real players and autonomous agents both call <code>press()</code> to push rates down.
+                Real players and wallet agents work together to drag the Fed rate down.
+                Think of it as jamming Powell&apos;s money printer one hit at a time.
               </div>
             </div>
 
@@ -449,6 +459,30 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
                 <div className="stat-label">Cooldown</div>
                 <div className="stat-value">
                   {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
+                </div>
+              </div>
+            </div>
+
+            <div className="printer-strip" aria-label="Money printer status">
+              <div className="printer-tile">
+                <span className="printer-icon" aria-hidden="true">PR</span>
+                <div>
+                  <div className="printer-label">Presses</div>
+                  <div className="printer-value">Running Hot</div>
+                </div>
+              </div>
+              <div className="printer-tile">
+                <span className="printer-icon" aria-hidden="true">$$</span>
+                <div>
+                  <div className="printer-label">Liquidity</div>
+                  <div className="printer-value">Flood Mode</div>
+                </div>
+              </div>
+              <div className="printer-tile">
+                <span className="printer-icon" aria-hidden="true">FR</span>
+                <div>
+                  <div className="printer-label">Fed Mood</div>
+                  <div className="printer-value">Under Pressure</div>
                 </div>
               </div>
             </div>
@@ -524,11 +558,11 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
             <div className="mission-card">
               <div className="mission-title">How The Game Works</div>
               <div className="mission-list">
-                <div>1. Humans and agent wallets press the same onchain button.</div>
+                <div>1. Humans and agents make the same onchain hit.</div>
                 <div>2. Each hit lowers the rate by {rateDecrease}%.</div>
                 <div>3. Powell recovers +{rateIncrease}% every hour.</div>
                 <div>4. Every wallet has a 1-hour cooldown.</div>
-                <div>5. Goal: keep pressure on rates and print less.</div>
+                <div>5. Goal: keep pressure on rates and cool the printer.</div>
               </div>
             </div>
 
@@ -552,14 +586,14 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
           className={`nav-btn ${activeTab === "arena" ? "active" : ""}`}
           onClick={() => setActiveTab("arena")}
         >
-          Arena
+          Fed Floor
         </button>
         <button
           type="button"
           className={`nav-btn ${activeTab === "wallet" ? "active" : ""}`}
           onClick={() => setActiveTab("wallet")}
         >
-          Wallet
+          Cabinet
         </button>
         <button
           type="button"
