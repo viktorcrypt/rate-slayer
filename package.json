@@ -9,17 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@coinbase/onchainkit": "^0.38.19",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "wagmi": "^2.15.3",
-    "viem": "^2.21.54",
-    "@wagmi/core": "^2.15.3",
-    "@tanstack/react-query": "^5.62.11",
-    "@farcaster/miniapp-wagmi-connector": "^1.1.0"
+    "@coinbase/onchainkit": "1.1.2",
+    "@farcaster/miniapp-sdk": "^0.2.0",
+    "@farcaster/miniapp-wagmi-connector": "^1.1.1",
+    "@tanstack/react-query": "^5.90.2",
+    "@wagmi/core": "^2.18.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "viem": "^2.38.0",
+    "wagmi": "^2.18.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^5.0.4",
     "vite": "^7.2.4"
   }
 }

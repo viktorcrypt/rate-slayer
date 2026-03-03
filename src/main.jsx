@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { MiniKitProvider } from "@coinbase/onchainkit/minikit";
+import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { base } from "wagmi/chains";
 import App from './app.jsx'
 import './app.css'
@@ -10,13 +10,12 @@ const onchainKitApiKey = import.meta.env.VITE_PUBLIC_ONCHAINKIT_API_KEY;
 
 ReactDOM.createRoot(document.getElementById('app')).render(
   <React.StrictMode>
-    <MiniKitProvider
+    <OnchainKitProvider
       apiKey={onchainKitApiKey}
       chain={base}
-      autoConnect={true}
-      notificationProxyUrl="/api/notify"
+      miniKit={{ enabled: true }}
     >
       <App />
-    </MiniKitProvider>
+    </OnchainKitProvider>
   </React.StrictMode>,
 )
