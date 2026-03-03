@@ -147,7 +147,6 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
   );
 
   const connected = Boolean(address);
-  const hasSocialIdentity = Boolean(contextUser?.fid || rawName || contextUser?.pfpUrl);
 
   const displayName = rawName || (connected ? "Wallet User" : "Base Player");
   const avatarUrl = contextUser?.pfpUrl || contextUser?.avatarUrl || null;
@@ -357,34 +356,51 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     }
   }, [connect, getPreferredConnector]);
 
-  const maybeAutoShare = useCallback(async (rateValue = null) => {
-    if (!hasSocialIdentity) return;
-
+  const handleShareResult = useCallback(async (rateValue = null) => {
     const rateLabel =
       typeof rateValue === "number" && Number.isFinite(rateValue)
         ? `${rateValue.toFixed(2)}%`
         : "live rate";
-    const shareText = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
+    const resultLine = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const shareUrl =
+      origin ||
+      (typeof window !== "undefined" ? window.location.href : "");
+
+    if (!composeCast) {
+      try {
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share({
+            text: resultLine,
+            url: shareUrl || undefined,
+          });
+          return;
+        }
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(
+            shareUrl ? `${resultLine}\n${shareUrl}` : resultLine
+          );
+          showToast("Result copied. Share it anywhere.");
+          return;
+        }
+      } catch {
+        // Intentionally ignored; fallback toast below.
+      }
+
+      showToast("Share is unavailable in this client.");
+      return;
+    }
 
     try {
-      if (composeCast) {
-        await composeCast({
-          text: shareText,
-          embeds: [APP_URL],
-        });
-        return;
-      }
-
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({
-          text: shareText,
-          url: APP_URL,
-        });
-      }
-    } catch (error) {
-      console.warn("auto share skipped:", error);
+      await composeCast({
+        text: resultLine,
+        embeds: shareUrl ? [shareUrl] : undefined,
+      });
+    } catch {
+      showToast("Share failed. Try again.");
     }
-  }, [APP_URL, composeCast, hasSocialIdentity]);
+  }, [composeCast, showToast]);
 
   const handlePress = useCallback(async () => {
     try {
@@ -458,16 +474,16 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
           functionName: "getCurrentRate",
           chainId: CHAIN_ID,
         });
-        await maybeAutoShare(Number(latestRateBps) / 100);
+        await handleShareResult(Number(latestRateBps) / 100);
       } catch {
-        await maybeAutoShare(currentRate);
+        await handleShareResult(currentRate);
       }
     } catch (e) {
       setStatusMessage(humanError(e));
     } finally {
       setLoading(false);
     }
-  }, [address, connected, cooldownSec, currentRate, loadData, maybeAutoShare, showToast]);
+  }, [address, connected, cooldownSec, currentRate, handleShareResult, loadData, showToast]);
 
   const progressWidth =
     rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
