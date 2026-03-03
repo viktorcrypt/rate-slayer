@@ -554,30 +554,21 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
               </div>
             </div>
 
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-label">Total Hits</div>
-                <div className="stat-value">{presses ?? "..."}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">Cooldown</div>
-                <div className="stat-value">
-                  {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
+            <div className="combat-row">
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-label">Total Hits</div>
+                  <div className="stat-value">{presses ?? "..."}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Cooldown</div>
+                  <div className="stat-value">
+                    {!connected ? "Connect first" : cooldownSec > 0 ? formatTime(cooldownSec) : "Ready"}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="printer-gif-card" aria-label="Powell money printer cam">
-              <img
-                src="/powellprint.gif"
-                alt="Powell spinning the money printer"
-                className="printer-gif"
-              />
-            </div>
-
-            <div className="action-row">
               <button
-                className={`press-btn ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
+                className={`press-btn press-btn-side ${loading ? "loading" : ""} ${!canPress ? "disabled" : ""}`}
                 onClick={handlePress}
                 disabled={loading || !canPress}
                 type="button"
@@ -590,13 +581,23 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
                       ? "HIT POWELL"
                       : `Wait ${formatTime(cooldownSec)}`}
               </button>
+            </div>
 
-              {canShare && (
+            <div className="printer-gif-card" aria-label="Powell money printer cam">
+              <img
+                src="/powellprint.gif"
+                alt="Powell spinning the money printer"
+                className="printer-gif"
+              />
+            </div>
+
+            {canShare && (
+              <div className="action-row">
                 <button className="share-btn" type="button" onClick={handleShare}>
                   Share Result
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </section>
         )}
 

@@ -305,6 +305,13 @@ body {
   gap: 8px;
 }
 
+.combat-row {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .printer-gif-card {
   border: 1px solid rgba(100, 128, 194, 0.28);
   background: rgba(13, 19, 31, 0.78);
@@ -342,7 +349,7 @@ body {
 }
 
 .action-row {
-  margin-top: auto;
+  margin-top: 6px;
   display: grid;
   gap: 8px;
   z-index: 2;
@@ -363,6 +370,14 @@ body {
 .press-btn {
   background: var(--primary);
   color: #fff;
+}
+
+.press-btn-side {
+  height: 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  line-height: 1.15;
+  white-space: normal;
 }
 
 .press-btn:hover:not(:disabled) {
@@ -553,6 +568,14 @@ body {
     height: 100dvh;
     border-radius: 0;
     border: none;
+  }
+
+  .combat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .press-btn-side {
+    min-height: 52px;
   }
 }
 
