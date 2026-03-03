@@ -2,7 +2,6 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { WagmiProvider, useAccount, useConnect, useSwitchChain } from "wagmi";
 import { base } from "wagmi/chains";
 import { baseAccount } from "wagmi/connectors";
-import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sendCalls, getCapabilities, getPublicClient, readContract } from "@wagmi/core";
@@ -66,7 +65,6 @@ const config = createConfig({
       appName: "Beat Powell",
       appLogoUrl: APP_LOGO_URL,
     }),
-    farcasterMiniApp(),
   ],
 });
 
