@@ -360,7 +360,11 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
         ? `${rateValue.toFixed(2)}%`
         : "live rate";
     const resultLine = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
-    const shareUrl = APP_URL;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const shareUrl =
+      origin ||
+      (typeof window !== "undefined" ? window.location.href : "");
 
     if (!composeCast) {
       try {
