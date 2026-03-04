@@ -400,6 +400,14 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
     }
   }, [composeCast, showToast]);
 
+  const handleManualShare = useCallback(async () => {
+    if (!connected) {
+      setStatusMessage("Connect your Base Account first.");
+      return;
+    }
+    await handleShareResult(currentRate);
+  }, [connected, currentRate, handleShareResult]);
+
   const handlePress = useCallback(async () => {
     try {
       if (!connected || !address) {
@@ -465,23 +473,12 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
 
       await loadData();
 
-      try {
-        const latestRateBps = await readContract(config, {
-          address: CONTRACT_ADDRESS,
-          abi: CONTRACT_ABI,
-          functionName: "getCurrentRate",
-          chainId: CHAIN_ID,
-        });
-        await handleShareResult(Number(latestRateBps) / 100);
-      } catch {
-        await handleShareResult(currentRate);
-      }
     } catch (e) {
       setStatusMessage(humanError(e));
     } finally {
       setLoading(false);
     }
-  }, [address, connected, cooldownSec, currentRate, handleShareResult, loadData, showToast]);
+  }, [address, connected, cooldownSec, loadData, showToast]);
 
   const progressWidth =
     rate != null ? Math.max(0, Math.min(100, (rate / maxRate) * 100)) : 0;
@@ -664,6 +661,17 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
                 </div>
                 <span className="agent-row-value">{presses != null ? othersHits : "..."}</span>
               </div>
+            </div>
+
+            <div className="action-row">
+              <button
+                className="share-btn"
+                onClick={handleManualShare}
+                disabled={!connected}
+                type="button"
+              >
+                Share My Results
+              </button>
             </div>
           </section>
         )}
