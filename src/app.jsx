@@ -6,7 +6,8 @@ import { createConfig, http } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { sendCalls, getCapabilities, getPublicClient, readContract } from "@wagmi/core";
 import { parseAbi, parseAbiItem, encodeFunctionData } from "viem";
-import { useComposeCast, useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { sdk } from "@farcaster/miniapp-sdk";
 import powellImg from "./assets/powell.png";
 import "./app.css";
 
@@ -102,11 +103,10 @@ export default function App() {
 
 function BeatPowellAppWithMiniKit() {
   const miniKit = useMiniKit();
-  const { composeCast } = useComposeCast();
-  return <BeatPowellAppCore miniKit={miniKit} composeCast={composeCast} />;
+  return <BeatPowellAppCore miniKit={miniKit} />;
 }
 
-function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
+function BeatPowellAppCore({ miniKit = null }) {
   const { address, chain } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { switchChain } = useSwitchChain();
@@ -360,41 +360,16 @@ function BeatPowellAppCore({ miniKit = null, composeCast = null }) {
         ? `${rateValue.toFixed(2)}%`
         : "live rate";
     const resultLine = `I just hit Powell on Base. Current Fed rate: ${rateLabel}.`;
-    const shareUrl = APP_URL;
-
-    if (!composeCast) {
-      try {
-        if (typeof navigator !== "undefined" && navigator.share) {
-          await navigator.share({
-            text: resultLine,
-            url: shareUrl || undefined,
-          });
-          return;
-        }
-        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(
-            shareUrl ? `${resultLine}\n${shareUrl}` : resultLine
-          );
-          showToast("Result copied. Share it anywhere.");
-          return;
-        }
-      } catch {
-        // Intentionally ignored; fallback toast below.
-      }
-
-      showToast("Share is unavailable in this client.");
-      return;
-    }
 
     try {
-      await composeCast({
+      await sdk.actions.composeCast({
         text: resultLine,
-        embeds: shareUrl ? [shareUrl] : undefined,
+        embeds: [APP_URL],
       });
     } catch {
       showToast("Share failed. Try again.");
     }
-  }, [composeCast, showToast]);
+  }, [showToast]);
 
   const handlePress = useCallback(async () => {
     try {
