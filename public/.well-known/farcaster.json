@@ -11,6 +11,7 @@
     "version": "1",
     "name": "Beat Powell",
     "homeUrl": "https://rate-slayer.vercel.app",
+    "webhookUrl": "https://rate-slayer.vercel.app/api/webhook",
     "iconUrl": "https://rate-slayer.vercel.app/icon.png",
     "imageUrl": "https://rate-slayer.vercel.app/beatpowell-cover.png",
     "splashImageUrl": "https://rate-slayer.vercel.app/splash.png",
